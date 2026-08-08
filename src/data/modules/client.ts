@@ -19,42 +19,61 @@ export const getModuleById = (id: number): Module | undefined =>
 
 export const getAllModules = (): Module[] => SS_MODULES;
 
-export function useLiveModules(): Module[] {
-  const [modules, setModules] = useState<Module[]>(SS_MODULES);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/modules', { cache: 'no-store' });
-        const data = await res.json();
-        if (!cancelled && data?.success && Array.isArray(data.modules)) {
-          setModules(data.modules as Module[]);
-        }
-      } catch {
-        // network or parse failure — keep seed
+const dataCache = new Map<number, JsonQuestion[]>();
+let modulesPromise: Promise<Module[]> | null = null;
+let modulesState: Module[] = SS_MODULES;
+const modulesListeners = new Set<(m: Module[]) => void>();
+
+async function fetchModules(): Promise<Module[]> {
+  if (modulesPromise) return modulesPromise;
+  modulesPromise = (async () => {
+    try {
+      const res = await fetch('/api/modules', { cache: 'no-store' });
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.modules)) {
+        const list = data.modules as Module[];
+        modulesState = list;
+        modulesListeners.forEach((fn) => fn(list));
+        return list;
       }
-    })();
-    return () => { cancelled = true; };
+    } catch {
+      // network or parse failure — keep existing seed
+    } finally {
+      modulesPromise = null;
+    }
+    return modulesState;
+  })();
+  return modulesPromise;
+}
+
+export async function refreshModules(): Promise<Module[]> {
+  modulesPromise = null;
+  dataCache.clear();
+  return fetchModules();
+}
+
+export function useLiveModules(): Module[] {
+  const [modules, setModules] = useState<Module[]>(modulesState);
+  useEffect(() => {
+    fetchModules();
+    const fn = (m: Module[]) => setModules(m);
+    modulesListeners.add(fn);
+    return () => { modulesListeners.delete(fn); };
   }, []);
   return modules;
 }
 
-export async function refreshModules(): Promise<Module[]> {
-  try {
-    const res = await fetch('/api/modules', { cache: 'no-store' });
-    const data = await res.json();
-    if (data?.success && Array.isArray(data.modules)) return data.modules as Module[];
-  } catch {
-    // keep existing
-  }
-  return SS_MODULES;
-}
-
 async function fetchModuleRawJson(moduleId: number): Promise<JsonQuestion[]> {
+  if (dataCache.has(moduleId)) {
+    return dataCache.get(moduleId)!;
+  }
+
   const res = await fetch(`/api/modules/${moduleId}`, { cache: 'no-store' });
   if (!res.ok) return [];
   const data = await res.json();
-  return data as JsonQuestion[];
+  const jsonQuestions = data as JsonQuestion[];
+  dataCache.set(moduleId, jsonQuestions);
+  return jsonQuestions;
 }
 
 export async function getModuleQuestions(moduleId: number): Promise<Question[]> {
@@ -74,6 +93,10 @@ export async function preloadModuleData(moduleId: number): Promise<{ questions: 
   return { questions, chapters };
 }
 
-export function clearModuleDataCache(_moduleId?: number): void {
-  // No-op — caches were removed. Kept for backwards compatibility.
+export function clearModuleDataCache(moduleId?: number): void {
+  if (moduleId === undefined) {
+    dataCache.clear();
+  } else {
+    dataCache.delete(moduleId);
+  }
 }

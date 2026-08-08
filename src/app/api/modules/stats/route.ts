@@ -36,7 +36,7 @@ export async function GET() {
     return new NextResponse(JSON.stringify({ success: true, stats }), {
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-store',
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=3600',
       },
     });
   } catch {
