@@ -19,7 +19,13 @@ export const getModuleById = (id: number): Module | undefined =>
 
 export const getAllModules = (): Module[] => SS_MODULES;
 
-const dataCache = new Map<number, JsonQuestion[]>();
+interface CachedEntry {
+  questions: JsonQuestion[];
+  version: number;
+}
+
+const dataCache = new Map<number, CachedEntry>();
+const moduleVersions = new Map<number, number>();
 let modulesPromise: Promise<Module[]> | null = null;
 let modulesState: Module[] = SS_MODULES;
 const modulesListeners = new Set<(m: Module[]) => void>();
@@ -29,7 +35,8 @@ const CACHE_BUST_KEY = 'learnquiz:cache-bust';
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (e.key === CACHE_BUST_KEY) {
-      dataCache.clear();
+      // Don't clear dataCache — the fresh modules list updates moduleVersions,
+      // and per-module comparisons decide which entries need refetching.
       modulesPromise = null;
       fetchModules();
     }
@@ -45,6 +52,12 @@ async function fetchModules(): Promise<Module[]> {
       if (data?.success && Array.isArray(data.modules)) {
         const list = data.modules as Module[];
         modulesState = list;
+        moduleVersions.clear();
+        for (const m of list) moduleVersions.set(m.id, m.version ?? 0);
+        // Drop cache entries for modules that no longer exist.
+        for (const id of Array.from(dataCache.keys())) {
+          if (!moduleVersions.has(id)) dataCache.delete(id);
+        }
         modulesListeners.forEach((fn) => fn(list));
         return list;
       }
@@ -60,7 +73,6 @@ async function fetchModules(): Promise<Module[]> {
 
 export async function refreshModules(): Promise<Module[]> {
   modulesPromise = null;
-  dataCache.clear();
   if (typeof window !== 'undefined') {
     localStorage.setItem(CACHE_BUST_KEY, String(Date.now()));
   }
@@ -79,16 +91,26 @@ export function useLiveModules(): Module[] {
 }
 
 async function fetchModuleRawJson(moduleId: number): Promise<JsonQuestion[]> {
-  if (dataCache.has(moduleId)) {
-    return dataCache.get(moduleId)!;
+  const cached = dataCache.get(moduleId);
+  const currentVersion = moduleVersions.get(moduleId);
+
+  if (cached && currentVersion !== undefined && cached.version === currentVersion) {
+    return cached.questions;
   }
 
-  const res = await fetch(`/api/modules/${moduleId}`, { cache: 'no-store' });
-  if (!res.ok) return [];
-  const data = await res.json();
-  const jsonQuestions = data as JsonQuestion[];
-  dataCache.set(moduleId, jsonQuestions);
-  return jsonQuestions;
+  try {
+    const res = await fetch(`/api/modules/${moduleId}`, { cache: 'no-store' });
+    if (!res.ok) return cached ? cached.questions : [];
+    const data = (await res.json()) as JsonQuestion[];
+    const versionHeader = res.headers.get('X-Module-Version');
+    const version = versionHeader != null ? Number(versionHeader) : (currentVersion ?? 0);
+    dataCache.set(moduleId, { questions: data, version });
+    if (Number.isFinite(version)) moduleVersions.set(moduleId, version);
+    return data;
+  } catch {
+    // Network failure — serve stale cache if we have it, else nothing.
+    return cached ? cached.questions : [];
+  }
 }
 
 export async function getModuleQuestions(moduleId: number): Promise<Question[]> {

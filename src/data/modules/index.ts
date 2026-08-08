@@ -7,6 +7,7 @@ export interface Module {
   gradient: string;
   json_filename?: string;
   icon?: string;
+  version?: number;
 }
 
 export interface JsonQuestion {

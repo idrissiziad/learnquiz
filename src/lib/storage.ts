@@ -10,9 +10,12 @@ export interface StoredModule {
   levels: string[];
   gradient: string;
   json_filename: string;
+  version?: number;
 }
 
 const MODULES_KEY = 'learnquiz:modules';
+const VERSIONS_HASH = 'learnquiz:content_versions';
+const VERSIONS_FILE = 'learnquiz_content_versions.json';
 const contentKey = (slug: string) => `learnquiz:content:${slug}`;
 const progressKey = (userId: string) => `learnquiz:progress:${userId}`;
 
@@ -85,9 +88,64 @@ async function delKey(key: string): Promise<void> {
   try { await unlink(join(process.cwd(), 'data', `${key.replace(/:/g, '_')}.json`)); } catch { /* ignore */ }
 }
 
+async function getAllContentVersions(): Promise<Record<string, number>> {
+  if (backend() === 'redis') {
+    const raw = await redis('HGETALL', VERSIONS_HASH) as Record<string, string> | null;
+    if (!raw) return {};
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      const n = Number(v);
+      if (Number.isFinite(n)) out[k] = n;
+    }
+    return out;
+  }
+  try {
+    const raw = await readFile(join(process.cwd(), 'data', VERSIONS_FILE), 'utf-8');
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch { return {}; }
+}
+
+async function bumpContentVersion(slug: string): Promise<number> {
+  if (backend() === 'redis') {
+    const next = await redis('HINCRBY', VERSIONS_HASH, slug, 1);
+    return Number(next);
+  }
+  if (isServerless()) throw new Error(READONLY_FS_HINT);
+  const filePath = join(process.cwd(), 'data', VERSIONS_FILE);
+  let versions: Record<string, number> = {};
+  try {
+    versions = JSON.parse(await readFile(filePath, 'utf-8')) as Record<string, number>;
+  } catch { /* first run */ }
+  const next = (versions[slug] ?? 0) + 1;
+  versions[slug] = next;
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, JSON.stringify(versions, null, 2), 'utf-8');
+  return next;
+}
+
+async function removeContentVersion(slug: string): Promise<void> {
+  if (backend() === 'redis') {
+    await redis('HDEL', VERSIONS_HASH, slug);
+    return;
+  }
+  if (isServerless()) return;
+  try {
+    const filePath = join(process.cwd(), 'data', VERSIONS_FILE);
+    const versions = JSON.parse(await readFile(filePath, 'utf-8')) as Record<string, number>;
+    delete versions[slug];
+    await writeFile(filePath, JSON.stringify(versions, null, 2), 'utf-8');
+  } catch { /* ignore */ }
+}
+
 export async function listModules(): Promise<StoredModule[]> {
   const stored = await getJson(MODULES_KEY);
-  if (Array.isArray(stored)) return stored as StoredModule[];
+  if (Array.isArray(stored)) {
+    const list = stored as StoredModule[];
+    const versions = await getAllContentVersions();
+    for (const m of list) m.version = versions[m.json_filename] ?? 0;
+    return list;
+  }
 
   const seed = await seedFromDisk();
   if (seed.length) await setJson(MODULES_KEY, seed);
@@ -163,12 +221,14 @@ export async function getModuleContent(slug: string): Promise<JsonQuestion[]> {
   return readJsonContent(value);
 }
 
-export async function saveModuleContent(slug: string, questions: JsonQuestion[]): Promise<void> {
+export async function saveModuleContent(slug: string, questions: JsonQuestion[]): Promise<number> {
   await setJson(contentKey(slug), questions);
+  return bumpContentVersion(slug);
 }
 
 export async function deleteModuleContent(slug: string): Promise<void> {
   await delKey(contentKey(slug));
+  await removeContentVersion(slug);
 }
 
 export async function loadUserProgress(userId: string): Promise<Record<string, any>> {

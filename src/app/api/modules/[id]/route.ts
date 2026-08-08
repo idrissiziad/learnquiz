@@ -21,6 +21,7 @@ export async function GET(
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store',
+        'X-Module-Version': String(mod.version ?? 0),
       },
     });
   } catch {
