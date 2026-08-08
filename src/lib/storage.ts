@@ -136,7 +136,16 @@ export async function getModuleById(id: number): Promise<StoredModule | undefine
   return list.find((m) => m.id === id);
 }
 
+const NEXT_ID_KEY = 'learnquiz:next_module_id';
+
 export async function getNextModuleId(): Promise<number> {
+  if (backend() === 'redis') {
+    const list = await listModules();
+    const maxId = list.length ? Math.max(...list.map((m) => m.id)) : 0;
+    await redis('SETNX', NEXT_ID_KEY, maxId);
+    const next = await redis('INCR', NEXT_ID_KEY);
+    return Number(next);
+  }
   const list = await listModules();
   return list.length ? Math.max(...list.map((m) => m.id)) + 1 : 1;
 }

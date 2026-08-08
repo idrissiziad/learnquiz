@@ -24,6 +24,18 @@ let modulesPromise: Promise<Module[]> | null = null;
 let modulesState: Module[] = SS_MODULES;
 const modulesListeners = new Set<(m: Module[]) => void>();
 
+const CACHE_BUST_KEY = 'learnquiz:cache-bust';
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === CACHE_BUST_KEY) {
+      dataCache.clear();
+      modulesPromise = null;
+      fetchModules();
+    }
+  });
+}
+
 async function fetchModules(): Promise<Module[]> {
   if (modulesPromise) return modulesPromise;
   modulesPromise = (async () => {
@@ -49,6 +61,9 @@ async function fetchModules(): Promise<Module[]> {
 export async function refreshModules(): Promise<Module[]> {
   modulesPromise = null;
   dataCache.clear();
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(CACHE_BUST_KEY, String(Date.now()));
+  }
   return fetchModules();
 }
 
