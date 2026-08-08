@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f9fafb;
+  --foreground: #1f2937;
+  --primary-green: #0d4f3c;
+  --secondary-brown: #92400e;
+  --text-dark: #374151;
+  --text-light: #6b7280;
+  --card-bg: #ffffff;
+  --border-light: #e5e7eb;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary-green: var(--primary-green);
+  --color-secondary-brown: var(--secondary-brown);
+  --color-text-dark: var(--text-dark);
+  --color-text-light: var(--text-light);
+  --color-card-bg: var(--card-bg);
+  --color-border-light: var(--border-light);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  /* Enable smooth scrolling */
+  scroll-behavior: smooth;
+  /* Prevent zoom on input focus on iOS */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Mobile-specific: Prevent text selection and callouts */
+@media (max-width: 640px) {
+  body {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Allow text selection for input fields and text content */
+input, textarea, [contenteditable], p, span, div {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Desktop-specific optimizations */
+@media (min-width: 1024px) {
+  body {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  
+  /* Better scrollbar for desktop */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: var(--border-light);
+    border-radius: 5px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: var(--text-light);
+    border-radius: 5px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dark);
+  }
+}
+
+/* Mobile-specific button interactions */
+@media (max-width: 640px) {
+  button, a, .clickable {
+    /* Add touch feedback for mobile */
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    /* Prevent double-tap zoom on buttons */
+    touch-action: manipulation;
+  }
+  
+  /* Improve readability on small screens */
+  body {
+    font-size: 16px; /* Prevents zoom on iOS */
+    line-height: 1.5;
+  }
+  
+  /* Better spacing for touch targets */
+  button, .btn {
+    min-height: 44px; /* Minimum touch target size */
+    min-width: 44px;
+  }
+}
+
+/* Custom scrollbar for mobile/tablet */
+@media (max-width: 1023px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: var(--border-light);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: var(--text-light);
+    border-radius: 3px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dark);
+  }
+}
+
+/* Focus styles for better accessibility */
+@layer base {
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--primary-green);
+    outline-offset: 2px;
+  }
+}
+
+/* Desktop hover effects */
+@media (min-width: 1024px) {
+  /* Smooth transitions for interactive elements */
+  button, a, .interactive {
+    transition: all 0.2s ease-in-out;
+  }
+  
+  /* Better focus ring for keyboard navigation */
+  @layer base {
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid var(--primary-green);
+      outline-offset: 3px;
+    }
+  }
+  
+  /* Card hover effects */
+  .card-hover {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  }
+  
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  }
+}

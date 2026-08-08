@@ -1,0 +1,5 @@
+# This directory is a Syncthing folder marker.
+# Do not delete.
+
+folderID: ewx2q-dts93
+created: 2026-05-14T13:34:17+01:00
